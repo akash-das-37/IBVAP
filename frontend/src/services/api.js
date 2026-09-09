@@ -20,73 +20,103 @@ export function getApiBase() {
   return `${getBackendBase()}/api/v1`;
 }
 
+async function safeFetch(url, options = {}, defaultValue = null) {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      console.warn(`[IBVAP API] HTTP ${res.status} for ${url}`);
+      return defaultValue;
+    }
+    return await res.json();
+  } catch (err) {
+    console.warn(`[IBVAP API] Request failed for ${url}:`, err.message);
+    return defaultValue;
+  }
+}
+
 export const api = {
   // Health
   getHealth: async () => {
-    const res = await fetch(`${getApiBase()}/health`);
-    return res.json();
+    return safeFetch(`${getApiBase()}/health`, {}, { status: 'OFFLINE' });
   },
 
   // Cameras
   getCameras: async () => {
-    const res = await fetch(`${getApiBase()}/cameras/`);
-    return res.json();
+    const data = await safeFetch(`${getApiBase()}/cameras/`, {}, []);
+    return Array.isArray(data) ? data : [];
   },
 
   switchCameraSource: async (cameraId, sourceUrl) => {
-    const res = await fetch(`${getApiBase()}/cameras/${cameraId}/source`, {
+    return safeFetch(`${getApiBase()}/cameras/${cameraId}/source`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source_url: sourceUrl })
-    });
-    return res.json();
+    }, { success: false });
   },
 
   // Zones
   getZones: async () => {
-    const res = await fetch(`${getApiBase()}/zones/`);
-    return res.json();
+    const data = await safeFetch(`${getApiBase()}/zones/`, {}, []);
+    return Array.isArray(data) ? data : [];
   },
 
   saveZone: async (zoneData) => {
-    const res = await fetch(`${getApiBase()}/zones/`, {
+    return safeFetch(`${getApiBase()}/zones/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(zoneData)
-    });
-    return res.json();
+    }, { success: false });
   },
 
   deleteZone: async (zoneId) => {
-    const res = await fetch(`${getApiBase()}/zones/${zoneId}`, {
+    return safeFetch(`${getApiBase()}/zones/${zoneId}`, {
       method: 'DELETE'
-    });
-    return res.json();
+    }, { success: false });
   },
 
-  // Alerts
-  getAlerts: async (limit = 20, unackOnly = false) => {
-    const res = await fetch(`${getApiBase()}/alerts/?limit=${limit}&unacknowledged_only=${unackOnly}`);
-    return res.json();
+  // Alerts - supports both getAlerts({ limit: 15, severity: 'HIGH' }) and getAlerts(15)
+  getAlerts: async (params = {}) => {
+    let q = '';
+    if (typeof params === 'number') {
+      q = `limit=${params}`;
+    } else if (typeof params === 'object' && params !== null) {
+      q = new URLSearchParams(params).toString();
+    }
+    const url = `${getApiBase()}/alerts/${q ? `?${q}` : ''}`;
+    const data = await safeFetch(url, {}, []);
+    return Array.isArray(data) ? data : [];
   },
 
   acknowledgeAlert: async (alertId) => {
-    const res = await fetch(`${getApiBase()}/alerts/${alertId}/ack`, {
-      method: 'PUT'
-    });
-    return res.json();
+    return safeFetch(`${getApiBase()}/alerts/${alertId}/acknowledge`, {
+      method: 'PATCH'
+    }, { success: false });
   },
 
-  // Events & Telemetry
-  getEvents: async (limit = 50, eventType = null) => {
-    let url = `${getApiBase()}/events/?limit=${limit}`;
-    if (eventType) url += `&event_type=${eventType}`;
-    const res = await fetch(url);
-    return res.json();
+  // Events - supports both getEvents({ limit: 20 }) and getEvents(20)
+  getEvents: async (params = {}) => {
+    let q = '';
+    if (typeof params === 'number') {
+      q = `limit=${params}`;
+    } else if (typeof params === 'object' && params !== null) {
+      q = new URLSearchParams(params).toString();
+    }
+    const url = `${getApiBase()}/events/${q ? `?${q}` : ''}`;
+    const data = await safeFetch(url, {}, []);
+    return Array.isArray(data) ? data : [];
+  },
+
+  // Stats - alias both getStats and getEventStats
+  getStats: async () => {
+    return safeFetch(`${getApiBase()}/events/stats`, {}, {
+      events_today: 0,
+      active_alerts: 0,
+      critical_alerts: 0,
+      ai_status: 'Edge Connected'
+    });
   },
 
   getEventStats: async () => {
-    const res = await fetch(`${getApiBase()}/events/stats`);
-    return res.json();
+    return api.getStats();
   }
 };

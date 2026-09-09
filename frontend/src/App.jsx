@@ -44,11 +44,11 @@ export default function App() {
         api.getStats()
       ]);
 
-      setCameras(camsData);
-      if (camsData.length > 0) setCurrentCamera(camsData[0]);
-      setAlerts(alertsData);
-      setEvents(eventsData);
-      setHistoricalStats(statsData);
+      setCameras(Array.isArray(camsData) ? camsData : []);
+      if (Array.isArray(camsData) && camsData.length > 0) setCurrentCamera(camsData[0]);
+      setAlerts(Array.isArray(alertsData) ? alertsData : []);
+      setEvents(Array.isArray(eventsData) ? eventsData : []);
+      if (statsData) setHistoricalStats(statsData);
     } catch (err) {
       console.error('Error loading initial data:', err);
     }
