@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Plus, Trash2, Save, RotateCcw, Crosshair, Check, Eye } from 'lucide-react';
-import { api } from '../services/api';
+import { api, getBackendBase } from '../services/api';
 
 export default function ZonesPage() {
   const [zones, setZones] = useState([]);
@@ -309,7 +309,7 @@ export default function ZonesPage() {
             {/* Live Camera Snapshot Image */}
             <img
               ref={imageRef}
-              src={`http://${window.location.hostname}:8000/api/v1/stream/snapshot/raw?t=${snapshotTimestamp}`}
+              src={`${getBackendBase()}/api/v1/stream/snapshot/raw?t=${snapshotTimestamp}`}
               alt="Camera Zone View"
               className="absolute inset-0 w-full h-full object-contain pointer-events-none"
               onError={(e) => {

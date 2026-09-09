@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Camera, RefreshCw, Smartphone, Video, FileVideo, Maximize2, ShieldAlert } from 'lucide-react';
-import { api } from '../services/api';
+import { api, getBackendBase } from '../services/api';
 
 export default function LiveFeed({ liveStats, currentCamera, onSourceChanged }) {
   const [streamError, setStreamError] = useState(false);
@@ -8,7 +8,7 @@ export default function LiveFeed({ liveStats, currentCamera, onSourceChanged }) 
   const [customSource, setCustomSource] = useState('');
   const [isSwitching, setIsSwitching] = useState(false);
 
-  const streamUrl = `http://${window.location.hostname}:8000/api/v1/stream/video_feed`;
+  const streamUrl = `${getBackendBase()}/api/v1/stream/video_feed`;
 
   const handleSwitchSource = async (newSource) => {
     setIsSwitching(true);

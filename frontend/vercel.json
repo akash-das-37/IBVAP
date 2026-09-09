@@ -1,0 +1,9 @@
+{
+  "name": "IBVAP-Security",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

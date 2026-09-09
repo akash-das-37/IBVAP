@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, Filter, Check, Eye } from 'lucide-react';
-import { api } from '../services/api';
+import { api, getBackendBase } from '../services/api';
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState([]);
@@ -123,11 +123,11 @@ export default function AlertsPage() {
               <div className="flex items-center space-x-3 shrink-0">
                 {al.snapshot_path && (
                   <button
-                    onClick={() => setSelectedSnapshot(`http://${window.location.hostname}:8000${al.snapshot_path}`)}
+                    onClick={() => setSelectedSnapshot(`${getBackendBase()}${al.snapshot_path}`)}
                     className="relative group w-24 h-16 rounded border border-slate-700 overflow-hidden bg-black"
                   >
                     <img
-                      src={`http://${window.location.hostname}:8000${al.snapshot_path}`}
+                      src={`${getBackendBase()}${al.snapshot_path}`}
                       alt="Incident Snapshot"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />

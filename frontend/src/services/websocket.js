@@ -1,3 +1,5 @@
+import { getBackendBase } from './api';
+
 class WebSocketService {
   constructor() {
     this.ws = null;
@@ -8,8 +10,10 @@ class WebSocketService {
   }
 
   connect() {
-    const host = window.location.hostname || 'localhost';
-    const url = `ws://${host}:8000/ws/alerts`;
+    const backend = getBackendBase();
+    const wsProto = backend.startsWith('https') ? 'wss' : 'ws';
+    const cleanHost = backend.replace(/^https?:\/\//, '');
+    const url = `${wsProto}://${cleanHost}/ws`;
 
     try {
       this.ws = new WebSocket(url);

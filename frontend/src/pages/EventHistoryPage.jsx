@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { History, Search, Download, Eye } from 'lucide-react';
-import { api } from '../services/api';
+import { api, getBackendBase } from '../services/api';
 
 export default function EventHistoryPage() {
   const [events, setEvents] = useState([]);
@@ -138,7 +138,7 @@ export default function EventHistoryPage() {
                     <td className="py-2.5 px-3 text-right">
                       {e.snapshot_path ? (
                         <button
-                          onClick={() => setSelectedSnapshot(`http://${window.location.hostname}:8000${e.snapshot_path}`)}
+                          onClick={() => setSelectedSnapshot(`${getBackendBase()}${e.snapshot_path}`)}
                           className="p-1 hover:bg-slate-800 rounded text-cyan-400"
                           title="View Snapshot"
                         >
