@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #07090e;
+    color: #f1f5f9;
+  }
+}
+
+/* Custom Tactical Surveillance Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #253248;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00f0ff;
+}
+
+/* Radar Scan Line Animation */
+@keyframes radar-scan {
+  0% {
+    top: 0%;
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    top: 100%;
+    opacity: 0.8;
+  }
+}
+
+.radar-scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.8), transparent);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.6);
+  animation: radar-scan 4s linear infinite;
+  pointer-events: none;
+}
