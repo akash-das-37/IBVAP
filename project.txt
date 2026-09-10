@@ -1,0 +1,31 @@
+====================================================================
+📱 IBVAP — PROJECT SUMMARY (QUICK TEXT MESSAGE / SHAREABLE FORMAT)
+====================================================================
+
+Hey! Here’s a quick overview of my project IBVAP (Intelligent Border Video Analytics Platform):
+
+🎯 WHAT IS IBVAP?
+It’s an Edge AI surveillance platform designed to add smart security analytics to ANY existing CCTV camera or smartphone without needing to replace expensive camera hardware.
+
+"We are not replacing the human operator. We are reducing the video they need to watch."
+
+⚡ WHAT DOES IT DO?
+1. Real-time Detection & Tracking: Uses YOLOv8 + ByteTrack to detect and track people, cars, bikes, and trucks at 20-60+ FPS.
+2. Custom Restricted Zones: Operators can draw any custom boundary/fence directly on the live camera view. If someone enters or crosses, it immediately triggers an intrusion alert!
+3. Loitering Detection: Tracks how long a person stays in a sensitive area and alerts if they linger too long.
+4. Automatic License Plate Recognition (ANPR): Crops vehicle plates and reads registration numbers automatically using EasyOCR.
+5. Tactical Web Dashboard: Live video stream with bounding boxes, real-time alert popups, sound notifications, and snapshot evidence saving.
+6. Smartphone as CCTV: Any smartphone running an IP webcam app works directly over Wi-Fi as an RTSP surveillance feed!
+
+🛠️ TECH STACK:
+• AI / Computer Vision: YOLOv8 (Ultralytics), ByteTrack, OpenCV, EasyOCR, PyTorch
+• Backend: FastAPI (Python), Uvicorn, WebSockets, SQLAlchemy, SQLite
+• Frontend: React 18, Vite, Tailwind CSS, Lucide Icons
+• Deployment: Vercel (Frontend) + Local Edge Processing (Backend)
+
+🔗 LINKS:
+• Live Web Dashboard: https://ibvap-phi.vercel.app
+• GitHub Source Code: https://github.com/akash-das-37/IBVAP
+
+Let me know what you think! 🚀
+====================================================================
