@@ -4,11 +4,29 @@ import time
 import subprocess
 import signal
 
+def cleanup_stale_ports(ports=(8000, 5173)):
+    """Terminates any orphan background processes holding server ports or camera handles."""
+    my_pid = os.getpid()
+    for port in ports:
+        try:
+            cmd = f'powershell -Command "Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique"'
+            output = subprocess.check_output(cmd, shell=True, text=True).strip()
+            pids = [int(p.strip()) for p in output.split() if p.strip().isdigit()]
+            for pid in pids:
+                if pid > 0 and pid != my_pid:
+                    print(f"[Cleanup] Terminating stale process PID {pid} on port {port}...")
+                    subprocess.run(f"taskkill /F /T /PID {pid}", shell=True, capture_output=True)
+        except Exception:
+            pass
+
 def main():
     print("==================================================================")
     print("  IBVAP — Intelligent Border Video Analytics Platform (Defense Edge)")
     print("==================================================================")
-    print("Starting IBVAP Backend & Frontend Services...\n")
+    print("Pre-flight check: Releasing hardware and ports...")
+    cleanup_stale_ports()
+
+    print("\nStarting IBVAP Backend & Frontend Services...\n")
 
     # 1. Start FastAPI Backend
     backend_cmd = [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
@@ -35,8 +53,10 @@ def main():
 
     def signal_handler(sig, frame):
         print("\nInitiating graceful IBVAP shutdown...")
-        backend_proc.terminate()
-        frontend_proc.terminate()
+        if backend_proc.poll() is None:
+            subprocess.run(f"taskkill /F /T /PID {backend_proc.pid}", shell=True, capture_output=True)
+        if frontend_proc.poll() is None:
+            subprocess.run(f"taskkill /F /T /PID {frontend_proc.pid}", shell=True, capture_output=True)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)

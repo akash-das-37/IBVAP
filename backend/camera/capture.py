@@ -51,6 +51,15 @@ class VideoCaptureThread:
             logger.info(f"Source identified as Local Webcam (Index {src_str})")
             return int(src_str)
 
+        if src_str.lower() in ["webcam", "camera", "builtin", "local", "cam0"]:
+            self.is_webcam = True
+            logger.info("Source identified as Local Webcam (Index 0)")
+            return 0
+        elif src_str.lower() == "cam1":
+            self.is_webcam = True
+            logger.info("Source identified as Local Webcam (Index 1)")
+            return 1
+
         # 2. Fix protocol typos (e.g., "http:/192.168.1.5" -> "http://192.168.1.5")
         if src_str.startswith("http:/") and not src_str.startswith("http://"):
             src_str = "http://" + src_str[6:].lstrip("/")
@@ -130,30 +139,40 @@ class VideoCaptureThread:
             return False
 
         elif self.is_webcam:
-            # On Windows, try DirectShow first for fast webcam capture, fallback to default
-            self.cap = cv2.VideoCapture(self.parsed_source, cv2.CAP_DSHOW)
-            if not self.cap or not self.cap.isOpened():
-                if self.cap is not None:
+            indices_to_try = [self.parsed_source]
+            if self.parsed_source == 0:
+                indices_to_try.append(1)
+            elif self.parsed_source == 1:
+                indices_to_try.append(0)
+
+            webcam_backends = [cv2.CAP_DSHOW, cv2.CAP_ANY]
+            for idx in indices_to_try:
+                for backend in webcam_backends:
                     try:
-                        self.cap.release()
-                    except Exception:
-                        pass
-                self.cap = cv2.VideoCapture(self.parsed_source)
-            if self.cap and self.cap.isOpened():
-                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                        logger.info(f"Attempting to open webcam index {idx} with backend {backend} ...")
+                        cap = cv2.VideoCapture(idx, backend)
+                        if cap and cap.isOpened():
+                            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                            ret, test_frame = cap.read()
+                            if ret and test_frame is not None and test_frame.size > 0:
+                                self.parsed_source = idx
+                                self.cap = cap
+                                self.current_frame = test_frame
+                                self.is_connected = True
+                                logger.info(f"Local webcam index {idx} successfully initialized and verified (backend {backend}).")
+                                return True
+                            else:
+                                cap.release()
+                    except Exception as e:
+                        logger.warning(f"Failed opening webcam index {idx} with backend {backend}: {e}")
+
+            self.is_connected = False
+            logger.warning(f"Unable to open any local webcam (tried indices: {indices_to_try}).")
+            return False
         else:
             self.cap = cv2.VideoCapture(self.parsed_source)
-
-        if self.cap and self.cap.isOpened():
-            self.is_connected = True
-            logger.info(f"Camera connection successfully established for {self.parsed_source}.")
-            return True
-        else:
-            self.is_connected = False
-            logger.warning(f"Failed to open video source: {self.parsed_source}")
-            return False
 
     def _capture_worker(self):
         fps_timer = time.time()
