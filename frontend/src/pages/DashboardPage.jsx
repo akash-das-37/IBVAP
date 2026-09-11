@@ -10,6 +10,7 @@ export default function DashboardPage({
   currentCamera,
   alerts,
   events,
+  zones = [],
   onAlertUpdated,
   onSourceChanged
 }) {
@@ -24,6 +25,7 @@ export default function DashboardPage({
           <LiveFeed
             liveStats={liveStats}
             currentCamera={currentCamera}
+            zones={zones}
             onSourceChanged={onSourceChanged}
           />
         </div>

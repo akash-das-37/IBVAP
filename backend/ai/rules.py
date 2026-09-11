@@ -17,6 +17,39 @@ def is_point_in_polygon(point: Tuple[int, int], polygon_points: List[List[int]])
     dist = cv2.pointPolygonTest(pts, (float(point[0]), float(point[1])), False)
     return dist >= 0
 
+def is_bbox_in_polygon(bbox: List[int], polygon_points: List[List[int]]) -> bool:
+    """
+    Checks if a bounding box [x1, y1, x2, y2] intersects or enters a polygon.
+    Tests center, head (upper body), feet (ground contact), corners,
+    and checks if any polygon vertex is enclosed by the bbox.
+    """
+    if len(polygon_points) < 3 or len(bbox) != 4:
+        return False
+
+    x1, y1, x2, y2 = bbox
+    cx = (x1 + x2) // 2
+    cy = (y1 + y2) // 2
+
+    # Key test points of the target
+    test_points = [
+        (cx, cy),
+        (cx, y1 + int((y2 - y1) * 0.2)),  # Head / upper torso
+        (cx, max(y1, y2 - 4)),            # Feet / ground contact
+        (x1, y1), (x2, y1), (x1, y2), (x2, y2)
+    ]
+
+    pts = np.array(polygon_points, dtype=np.int32)
+    for pt in test_points:
+        if cv2.pointPolygonTest(pts, (float(pt[0]), float(pt[1])), False) >= 0:
+            return True
+
+    # Also check if any polygon vertex is enclosed inside the bounding box
+    for px, py in polygon_points:
+        if x1 <= px <= x2 and y1 <= py <= y2:
+            return True
+
+    return False
+
 def lines_intersect(p1: Tuple[int, int], p2: Tuple[int, int], p3: Tuple[int, int], p4: Tuple[int, int]) -> bool:
     """
     Determines whether line segment (p1, p2) intersects with line segment (p3, p4).
@@ -72,6 +105,7 @@ class SecurityRuleEngine:
             track_id = track["track_id"]
             obj_class = track["class_name"]
             center = track["center"]
+            bbox = track.get("bbox", [])
             conf = track["confidence"]
             direction = track["direction"]
             trajectory = track.get("trajectory", [])
@@ -82,6 +116,7 @@ class SecurityRuleEngine:
 
                 zone_id = zone.get("zone_id", "default_zone")
                 zone_name = zone.get("name", "Restricted Area")
+                zone_org = zone.get("organization_id")
                 zone_type = zone.get("zone_type", "polygon") # 'polygon' or 'tripwire'
                 prohibited_directions = zone.get("prohibited_directions", [])
                 target_classes = zone.get("target_classes", ["person", "car", "motorcycle", "bus", "truck"])
@@ -107,6 +142,7 @@ class SecurityRuleEngine:
                                     "severity": "CRITICAL",
                                     "zone_id": zone_id,
                                     "zone_name": zone_name,
+                                    "organization_id": zone_org,
                                     "track_id": track_id,
                                     "object_type": obj_class,
                                     "confidence": conf,
@@ -121,6 +157,8 @@ class SecurityRuleEngine:
                 elif zone_type == "polygon":
                     polygon = zone.get("polygon_coords", [])
                     is_inside = is_point_in_polygon(center, polygon)
+                    if not is_inside and bbox:
+                        is_inside = is_bbox_in_polygon(bbox, polygon)
 
                     dwell_key = (track_id, zone_id)
                     if is_inside:
@@ -138,6 +176,7 @@ class SecurityRuleEngine:
                                 "severity": severity,
                                 "zone_id": zone_id,
                                 "zone_name": zone_name,
+                                "organization_id": zone_org,
                                 "track_id": track_id,
                                 "object_type": obj_class,
                                 "confidence": conf,
@@ -155,6 +194,7 @@ class SecurityRuleEngine:
                                     "severity": "HIGH",
                                     "zone_id": zone_id,
                                     "zone_name": zone_name,
+                                    "organization_id": zone_org,
                                     "track_id": track_id,
                                     "object_type": obj_class,
                                     "confidence": conf,
@@ -172,6 +212,7 @@ class SecurityRuleEngine:
                                     "severity": "MEDIUM",
                                     "zone_id": zone_id,
                                     "zone_name": zone_name,
+                                    "organization_id": zone_org,
                                     "track_id": track_id,
                                     "object_type": obj_class,
                                     "confidence": conf,

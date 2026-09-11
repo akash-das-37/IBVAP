@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AlertOctagon, CheckCircle2, Eye, ShieldAlert } from 'lucide-react';
-import { api, getBackendBase } from '../services/api';
+import { api, formatSnapshotUrl } from '../services/api';
 
 export default function ActiveAlertsCard({ alerts = [], onAlertUpdated }) {
   const [selectedSnapshot, setSelectedSnapshot] = useState(null);
@@ -77,11 +77,11 @@ export default function ActiveAlertsCard({ alerts = [], onAlertUpdated }) {
                   {al.snapshot_path && (
                     <div className="ml-3 shrink-0">
                       <button
-                        onClick={() => setSelectedSnapshot(`${getBackendBase()}${al.snapshot_path}`)}
+                        onClick={() => setSelectedSnapshot(formatSnapshotUrl(al.snapshot_path))}
                         className="relative group block w-16 h-12 rounded border border-slate-700 overflow-hidden bg-black"
                       >
                         <img
-                          src={`${getBackendBase()}${al.snapshot_path}`}
+                          src={formatSnapshotUrl(al.snapshot_path)}
                           alt="Violation Snapshot"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         />

@@ -7,6 +7,7 @@ import threading
 from typing import List, Dict, Any, Optional
 import cv2
 import numpy as np
+import requests
 
 from backend.config import settings
 from backend.camera.capture import VideoCaptureThread
@@ -55,6 +56,7 @@ class AnalyticsPipeline:
         # 2. State
         self.is_running = False
         self.zones: List[Dict[str, Any]] = []
+        self.current_organization_id: Optional[str] = None
         self.latest_annotated_frame: Optional[np.ndarray] = None
         self.latest_tracks: List[Dict[str, Any]] = []
         self.active_alerts: List[Dict[str, Any]] = []
@@ -68,29 +70,64 @@ class AnalyticsPipeline:
         self._load_zones_from_db()
 
     def _load_zones_from_db(self):
-        from backend.database.session import init_db
-        init_db()
-        db = SessionLocal()
+        # 1. First attempt loading from Supabase Cloud (authenticated)
         try:
-            db_zones = db.query(ZoneModel).all()
-            if not db_zones:
-                # Seed default demo zone only when the table is completely empty (first ever run)
-                default_zone = ZoneModel(
-                    zone_id="ZONE-01",
-                    camera_id=settings.CAMERA_ID,
-                    name="Restricted Border Sector",
-                    zone_type="polygon",
-                    polygon_coords=json.dumps([[300, 200], [600, 200], [600, 480], [300, 480]]),
-                    is_restricted=True,
-                    dwell_threshold=settings.DWELL_THRESHOLD_SECONDS,
-                    color="#ef4444",
-                    enabled=True
-                )
-                db.add(default_zone)
-                db.commit()
-                db_zones = [default_zone]
-            # Only load enabled zones into the active detection engine
-            db_zones = [z for z in db_zones if z.enabled]
+            # Authenticate as service operator to satisfy RLS
+            auth_url = f"{settings.SUPABASE_URL}/auth/v1/token?grant_type=password"
+            auth_res = requests.post(auth_url, headers={
+                "apikey": settings.SUPABASE_KEY,
+                "Content-Type": "application/json"
+            }, json={
+                "email": "iamnegative37@gmail.com",
+                "password": "Surveillance2026!"
+            }, timeout=10)
+            
+            if auth_res.status_code == 200:
+                token = auth_res.json().get("access_token")
+                headers = {
+                    "apikey": settings.SUPABASE_KEY,
+                    "Authorization": f"Bearer {token}"
+                }
+            else:
+                logger.warning(f"Pipeline auth failed ({auth_res.status_code}), falling back to anon key")
+                headers = {
+                    "apikey": settings.SUPABASE_KEY,
+                    "Authorization": f"Bearer {settings.SUPABASE_KEY}"
+                }
+            
+            url = f"{settings.SUPABASE_URL}/rest/v1/zones?enabled=eq.true&select=*"
+            res = requests.get(url, headers=headers, timeout=15)
+            if res.status_code == 200 and res.json():
+                db_zones = res.json()
+                self.zones = []
+                for z in db_zones:
+                    self.zones.append({
+                        "zone_id": z.get("zone_id"),
+                        "name": z.get("name"),
+                        "zone_type": z.get("zone_type", "polygon"),
+                        "polygon_data": z.get("polygon_data") or [],
+                        "polygon_coords": z.get("polygon_coords") or [],
+                        "line_coords": z.get("line_coords") or [],
+                        "is_restricted": z.get("is_restricted", True),
+                        "dwell_threshold": z.get("dwell_threshold", 10.0),
+                        "prohibited_directions": z.get("prohibited_directions") or [],
+                        "color": z.get("color", "#ef4444"),
+                        "organization_id": z.get("organization_id"),
+                        "enabled": z.get("enabled", True)
+                    })
+                if db_zones:
+                    self.current_organization_id = db_zones[0].get("organization_id")
+                logger.info(f"Loaded {len(self.zones)} active detection zone(s) from Supabase Cloud.")
+                return
+        except Exception as e:
+            logger.warning(f"Unable to load initial zones from Supabase: {e}")
+
+        # 2. Fallback to local SQLite if Supabase unreachable
+        try:
+            from backend.database.session import init_db
+            init_db()
+            db = SessionLocal()
+            db_zones = db.query(ZoneModel).filter(ZoneModel.enabled == True).all()
 
             self.zones = []
             for z in db_zones:
@@ -106,16 +143,17 @@ class AnalyticsPipeline:
                     "color": z.color,
                     "enabled": z.enabled
                 })
-            logger.info(f"Loaded {len(self.zones)} active detection zone(s) from database.")
-        except Exception as e:
-            logger.error(f"Error loading zones: {e}")
-        finally:
+            logger.info(f"Loaded {len(self.zones)} active detection zone(s) from local database.")
             db.close()
+        except Exception as e:
+            logger.error(f"Error loading zones from local database: {e}")
 
-    def update_zones(self, new_zones: List[Dict[str, Any]]):
+    def update_zones(self, new_zones: List[Dict[str, Any]], organization_id: Optional[str] = None):
         with self._lock:
             self.zones = new_zones
-            logger.info(f"Updated in-memory zones: {len(new_zones)} zones active.")
+            if organization_id:
+                self.current_organization_id = organization_id
+            logger.info(f"Updated in-memory zones: {len(new_zones)} zones active (org: {self.current_organization_id}).")
 
     def set_camera_source(self, new_source: str):
         with self._lock:
@@ -195,6 +233,25 @@ class AnalyticsPipeline:
 
             violations = self.rules.evaluate(tracks, scaled_zones, now=now)
 
+            # Debug logging: periodic status (every ~5 seconds)
+            if self.frame_count % 60 == 0 and (tracks or current_zones):
+                person_tracks = [t for t in tracks if t["class_name"] == "person"]
+                logger.info(
+                    f"[PIPELINE DEBUG] Frame #{self.frame_count} | "
+                    f"Tracks: {len(tracks)} (persons: {len(person_tracks)}) | "
+                    f"Zones: {len(current_zones)} | "
+                    f"Scaled zones: {len(scaled_zones)} | "
+                    f"Violations: {len(violations)} | "
+                    f"Org: {self.current_organization_id}"
+                )
+                if person_tracks and scaled_zones:
+                    pt = person_tracks[0]
+                    sz = scaled_zones[0]
+                    logger.info(
+                        f"[PIPELINE DEBUG] First person center={pt.get('center')}, bbox={pt.get('bbox')} | "
+                        f"First zone polygon_coords={sz.get('polygon_coords', [])[:3]}..."
+                    )
+
             # 6. Process Rule Violations & Emit Alerts
             for violation in violations:
                 # Buffer to Event Queue
@@ -208,11 +265,13 @@ class AnalyticsPipeline:
                 })
 
                 # Create Alert & Snapshot
+                target_org = violation.get("organization_id") or self.current_organization_id
                 annotated_snapshot = self._draw_annotations(frame.copy(), tracks, scaled_zones, [violation])
                 alert = self.alert_engine.process_violation(
                     camera_id=settings.CAMERA_ID,
                     violation=violation,
-                    frame=annotated_snapshot
+                    frame=annotated_snapshot,
+                    organization_id=target_org
                 )
 
                 with self._lock:
@@ -220,15 +279,16 @@ class AnalyticsPipeline:
                     if len(self.active_alerts) > 20:
                         self.active_alerts.pop()
 
-                # Push to WebSocket clients
+                # Push alert EXCLUSIVELY to authorized organization WebSocket clients
                 if self.loop and not self.loop.is_closed():
-                    asyncio.run_coroutine_threadsafe(
-                        manager.broadcast({
-                            "type": "NEW_ALERT",
-                            "data": alert
-                        }),
-                        self.loop
-                    )
+                    if target_org:
+                        asyncio.run_coroutine_threadsafe(
+                            manager.send_to_org(target_org, {
+                                "type": "NEW_ALERT",
+                                "data": alert
+                            }),
+                            self.loop
+                        )
 
             # 7. Render Annotated Frame for Live Video Output
             annotated_frame = self._draw_annotations(processed_frame.copy(), tracks, scaled_zones, violations)
@@ -242,7 +302,7 @@ class AnalyticsPipeline:
                 meta = self.capture.get_metadata()
 
                 asyncio.run_coroutine_threadsafe(
-                    manager.broadcast({
+                    manager.broadcast_stats({
                         "type": "STATS_UPDATE",
                         "data": {
                             "camera_id": settings.CAMERA_ID,
@@ -264,25 +324,33 @@ class AnalyticsPipeline:
         scaled_zones = []
         for z in zones:
             sz = dict(z)
-            if sz.get("polygon_coords"):
-                sz["polygon_coords"] = self._scale_coords(sz["polygon_coords"], frame_w, frame_h)
+            pts = sz.get("polygon_data") or sz.get("polygon_coords")
+            if pts:
+                sz["polygon_coords"] = self._scale_coords(pts, frame_w, frame_h)
             if sz.get("line_coords"):
                 sz["line_coords"] = self._scale_coords(sz["line_coords"], frame_w, frame_h)
             scaled_zones.append(sz)
         return scaled_zones
 
-    def _scale_coords(self, coords: List[List[Any]], frame_w: int, frame_h: int) -> List[List[int]]:
+    def _scale_coords(self, coords: List[Any], frame_w: int, frame_h: int) -> List[List[int]]:
         if not coords:
             return []
         try:
-            # Check if coords are normalized (0.0 to 1.0)
-            is_norm = all(0.0 <= float(pt[0]) <= 1.0 and 0.0 <= float(pt[1]) <= 1.0 for pt in coords)
-            # Check if coords were drawn on standard 960x540 canvas while frame is different resolution
-            is_canvas_960 = (frame_w != 960 or frame_h != 540) and all(float(pt[0]) <= 960 and float(pt[1]) <= 540 for pt in coords)
+            standard_pts = []
+            for pt in coords:
+                if isinstance(pt, dict) and "x" in pt and "y" in pt:
+                    standard_pts.append((float(pt["x"]), float(pt["y"])))
+                elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                    standard_pts.append((float(pt[0]), float(pt[1])))
+
+            if not standard_pts:
+                return []
+
+            is_norm = all(0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 for x, y in standard_pts)
+            is_canvas_960 = (frame_w != 960 or frame_h != 540) and all(x <= 960 and y <= 540 for x, y in standard_pts)
 
             scaled = []
-            for pt in coords:
-                x, y = float(pt[0]), float(pt[1])
+            for x, y in standard_pts:
                 if is_norm:
                     sx = int(round(x * frame_w))
                     sy = int(round(y * frame_h))

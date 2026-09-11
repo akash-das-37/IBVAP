@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./data/ibvap.db"
     SNAPSHOT_DIR: str = "data/snapshots"
 
+    # Supabase Cloud Storage & Multi-Tenancy
+    SUPABASE_URL: str = "https://epgibdkihcswaaresftw.supabase.co"
+    SUPABASE_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwZ2liZGtpaGNzd2FhcmVzZnR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNjMxOTcsImV4cCI6MjEwNDYzOTE5N30.echJzPzlM0UYhLjZ__TW7ldf_o52CFHDNtPfqhpMovU"
+    SUPABASE_STORAGE_BUCKET: str = "surveillance-snapshots"
+
     # Server Network
     HOST: str = "0.0.0.0"
     PORT: int = 8000

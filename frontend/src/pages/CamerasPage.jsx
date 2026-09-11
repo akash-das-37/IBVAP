@@ -7,9 +7,9 @@ const DEFAULT_CAMERAS = [
     camera_id: 'CAM-01',
     name: 'Main Perimeter Camera',
     location: 'North Border Sector Alpha',
-    type: 'network_stream',
-    source_url: 'http://10.192.148.87:8080/video',
-    resolution: '1920x1080',
+    type: 'webcam',
+    source_url: '0',
+    resolution: '640x480',
     fps: 30,
     status: 'ONLINE'
   },
@@ -17,8 +17,8 @@ const DEFAULT_CAMERAS = [
     camera_id: 'CAM-02',
     name: 'South Checkpoint Sector',
     location: 'Gate 4 Vehicle Ingestion',
-    type: 'rtsp',
-    source_url: 'rtsp://192.168.1.100:554/stream1',
+    type: 'file',
+    source_url: 'data/demo_videos/sample_border.mp4',
     resolution: '1920x1080',
     fps: 25,
     status: 'STANDBY'
@@ -56,16 +56,23 @@ export default function CamerasPage({ liveStats, onSourceChanged }) {
     fetchCameras();
   }, []);
 
-  const handleUpdateSource = async (camId) => {
-    if (!newSourceUrl.trim()) return;
+  const handleUpdateSource = async (camId, overrideUrl) => {
+    const targetUrl = overrideUrl !== undefined ? overrideUrl : newSourceUrl;
+    if (typeof targetUrl !== 'string' && typeof targetUrl !== 'number') return;
+    const strUrl = String(targetUrl).trim();
+    if (!strUrl) return;
+
+    setLoading(true);
     try {
-      await api.switchCameraSource(camId, newSourceUrl);
+      await api.switchCameraSource(camId, strUrl);
       setEditingCameraId(null);
       setNewSourceUrl('');
-      fetchCameras();
-      if (onSourceChanged) onSourceChanged(newSourceUrl);
+      await fetchCameras();
+      if (onSourceChanged) onSourceChanged(strUrl);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to update camera source:', e);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -158,29 +165,25 @@ export default function CamerasPage({ liveStats, onSourceChanged }) {
                   <button
                     onClick={() => {
                       setEditingCameraId(cam.camera_id);
-                      setNewSourceUrl('http://10.192.148.87:8080/video');
+                      setNewSourceUrl('http://192.168.1.100:8080/video');
                     }}
-                    className="flex items-center space-x-1 px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] font-mono rounded border border-slate-800"
+                    className="flex items-center space-x-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] font-mono rounded border border-slate-800 transition-colors"
                   >
                     <Smartphone className="w-3 h-3 text-cyan-400" />
                     <span>IP Webcam</span>
                   </button>
                   <button
-                    onClick={() => {
-                      setEditingCameraId(cam.camera_id);
-                      setNewSourceUrl('0');
-                    }}
-                    className="flex items-center space-x-1 px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] font-mono rounded border border-slate-800"
+                    onClick={() => handleUpdateSource(cam.camera_id, '0')}
+                    className="flex items-center space-x-1 px-2.5 py-1 bg-slate-900 hover:bg-emerald-950/50 text-slate-300 hover:text-emerald-400 text-[11px] font-mono rounded border border-slate-800 hover:border-emerald-500/40 transition-colors"
+                    title="Switch immediately to built-in webcam"
                   >
                     <Video className="w-3 h-3 text-emerald-400" />
                     <span>Webcam (0)</span>
                   </button>
                   <button
-                    onClick={() => {
-                      setEditingCameraId(cam.camera_id);
-                      setNewSourceUrl('data/demo_videos/sample_border.mp4');
-                    }}
-                    className="flex items-center space-x-1 px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] font-mono rounded border border-slate-800"
+                    onClick={() => handleUpdateSource(cam.camera_id, 'data/demo_videos/sample_border.mp4')}
+                    className="flex items-center space-x-1 px-2.5 py-1 bg-slate-900 hover:bg-amber-950/50 text-slate-300 hover:text-amber-400 text-[11px] font-mono rounded border border-slate-800 hover:border-amber-500/40 transition-colors"
+                    title="Switch immediately to demo loop video"
                   >
                     <FileVideo className="w-3 h-3 text-amber-400" />
                     <span>Demo Loop</span>

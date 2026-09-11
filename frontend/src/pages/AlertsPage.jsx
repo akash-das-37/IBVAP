@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, Filter, Check, Eye } from 'lucide-react';
-import { api, getBackendBase } from '../services/api';
+import { api, formatSnapshotUrl } from '../services/api';
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState([]);
@@ -50,8 +50,11 @@ export default function AlertsPage() {
           </p>
         </div>
 
-        {/* Filter Controls */}
         <div className="flex items-center space-x-2">
+          <div className="hidden md:flex items-center space-x-1.5 px-2 py-1 bg-cyan-950/40 border border-cyan-500/30 rounded text-[11px] font-mono text-cyan-400">
+            <span>🔒 USER ISOLATED (RLS)</span>
+          </div>
+
           <select
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value)}
@@ -79,8 +82,20 @@ export default function AlertsPage() {
       {/* Alerts Grid */}
       <div className="space-y-3">
         {alerts.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 font-mono text-xs">
-            {loading ? 'Querying alert database...' : 'No alerts found matching current filters.'}
+          <div className="p-12 text-center text-slate-500 font-mono text-xs flex flex-col items-center justify-center space-y-3">
+            <p>{loading ? 'Querying encrypted alert database...' : 'No alerts recorded for this account. Each user account has private, encrypted storage.'}</p>
+            {!loading && (
+              <button
+                onClick={async () => {
+                  setLoading(true);
+                  await api.seedSampleUserData();
+                  await fetchAlerts();
+                }}
+                className="px-3 py-1.5 bg-cyan-950/70 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-500/40 rounded text-xs transition-all shadow-[0_0_15px_rgba(0,240,255,0.15)]"
+              >
+                + SIMULATE INTRUSION INCIDENT FOR THIS ACCOUNT
+              </button>
+            )}
           </div>
         ) : (
           alerts.map((al) => (
@@ -123,11 +138,11 @@ export default function AlertsPage() {
               <div className="flex items-center space-x-3 shrink-0">
                 {al.snapshot_path && (
                   <button
-                    onClick={() => setSelectedSnapshot(`${getBackendBase()}${al.snapshot_path}`)}
+                    onClick={() => setSelectedSnapshot(formatSnapshotUrl(al.snapshot_path))}
                     className="relative group w-24 h-16 rounded border border-slate-700 overflow-hidden bg-black"
                   >
                     <img
-                      src={`${getBackendBase()}${al.snapshot_path}`}
+                      src={formatSnapshotUrl(al.snapshot_path)}
                       alt="Incident Snapshot"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />

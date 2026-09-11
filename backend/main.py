@@ -6,6 +6,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+import json
+from typing import Optional
 from backend.config import settings
 from backend.database.session import init_db
 from backend.services.pipeline import pipeline
@@ -15,7 +17,8 @@ from backend.api import (
     zones_router,
     alerts_router,
     events_router,
-    stream_router
+    stream_router,
+    sites_router
 )
 
 # Configure logging
@@ -69,17 +72,25 @@ app.include_router(zones_router)
 app.include_router(alerts_router)
 app.include_router(events_router)
 app.include_router(stream_router)
+app.include_router(sites_router)
 
-# Real-time WebSocket Endpoint
+# Real-time WebSocket Endpoints (Supporting both /ws and /ws/alerts with token auth)
+@app.websocket("/ws")
 @app.websocket("/ws/alerts")
-async def websocket_alerts_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+async def websocket_alerts_endpoint(websocket: WebSocket, token: Optional[str] = None):
+    await manager.connect(websocket, token=token)
     try:
         while True:
-            # Keep-alive receive ping
-            data = await websocket.receive_text()
-            if data == "ping":
+            text = await websocket.receive_text()
+            if text == "ping":
                 await websocket.send_text("pong")
+            else:
+                try:
+                    msg = json.loads(text)
+                    if msg.get("type") == "AUTH" and msg.get("token"):
+                        manager.authenticate_socket(websocket, msg["token"])
+                except Exception:
+                    pass
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:

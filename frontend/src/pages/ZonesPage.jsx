@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Plus, Trash2, Save, RotateCcw, Crosshair, Check, Eye } from 'lucide-react';
+import { MapPin, Plus, Trash2, Save, RotateCcw, Crosshair, Check, Eye, AlertTriangle } from 'lucide-react';
 import { api, getBackendBase } from '../services/api';
 
 export default function ZonesPage() {
@@ -7,6 +7,7 @@ export default function ZonesPage() {
   const [selectedZone, setSelectedZone] = useState(null);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [saveSuccessBanner, setSaveSuccessBanner] = useState(null);
   const [isDrawingMode, setIsDrawingMode] = useState(false);
   const [drawnPoints, setDrawnPoints] = useState([]);
   const [snapshotTimestamp, setSnapshotTimestamp] = useState(Date.now());
@@ -14,20 +15,49 @@ export default function ZonesPage() {
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
 
+  const toCanvasPoints = (pts) => {
+    if (!pts || !Array.isArray(pts)) return [];
+    return pts.map(pt => {
+      let x = 0, y = 0;
+      if (typeof pt === 'object' && pt !== null && !Array.isArray(pt)) {
+        x = Number(pt.x) || 0;
+        y = Number(pt.y) || 0;
+      } else if (Array.isArray(pt) && pt.length >= 2) {
+        x = Number(pt[0]) || 0;
+        y = Number(pt[1]) || 0;
+      }
+      if (x <= 1.0 && y <= 1.0 && (x > 0 || y > 0)) {
+        return [Math.round(x * 960), Math.round(y * 540)];
+      }
+      return [Math.round(x), Math.round(y)];
+    });
+  };
+
+  const toNormalizedPoints = (canvasPts) => {
+    if (!canvasPts || !Array.isArray(canvasPts)) return [];
+    return canvasPts.map(pt => {
+      const x = Number(pt[0]) || 0;
+      const y = Number(pt[1]) || 0;
+      return {
+        x: Number((x / 960).toFixed(4)),
+        y: Number((y / 540).toFixed(4))
+      };
+    });
+  };
+
   const fetchZones = async () => {
     setLoading(true);
     try {
       const data = await api.getZones();
       setZones(data);
       if (data.length > 0) {
-        // Always re-select the previously selected zone (by ID) or the first one
         const currentId = selectedZone?.zone_id;
         const toSelect = currentId ? (data.find(z => z.zone_id === currentId) || data[0]) : data[0];
         setSelectedZone(toSelect);
-        const pts = toSelect.zone_type === 'polygon'
-          ? (toSelect.polygon_coords || [])
+        const rawPts = toSelect.zone_type === 'polygon'
+          ? (toSelect.polygon_data || toSelect.polygon_coords || [])
           : (toSelect.line_coords || []);
-        setDrawnPoints(pts);
+        setDrawnPoints(toCanvasPoints(rawPts));
       } else {
         setSelectedZone(null);
         setDrawnPoints([]);
@@ -43,15 +73,14 @@ export default function ZonesPage() {
     fetchZones();
   }, []);
 
-  // When selectedZone changes (user clicked a different zone in list), sync canvas points
   const prevZoneId = useRef(null);
   useEffect(() => {
     if (selectedZone && selectedZone.zone_id !== prevZoneId.current) {
       prevZoneId.current = selectedZone.zone_id;
-      const pts = selectedZone.zone_type === 'polygon'
-        ? (selectedZone.polygon_coords || [])
+      const rawPts = selectedZone.zone_type === 'polygon'
+        ? (selectedZone.polygon_data || selectedZone.polygon_coords || [])
         : (selectedZone.line_coords || []);
-      setDrawnPoints(pts);
+      setDrawnPoints(toCanvasPoints(rawPts));
     }
   }, [selectedZone?.zone_id]);
 
@@ -168,33 +197,52 @@ export default function ZonesPage() {
     if (e) e.preventDefault();
     if (!selectedZone) return;
 
+    const normPoints = toNormalizedPoints(drawnPoints);
     const updatedZone = {
       ...selectedZone,
-      polygon_coords: selectedZone.zone_type === 'polygon' ? drawnPoints : [],
-      line_coords: selectedZone.zone_type === 'tripwire' ? drawnPoints : []
+      polygon_data: selectedZone.zone_type === 'polygon' ? normPoints : [],
+      polygon_coords: selectedZone.zone_type === 'polygon' ? normPoints.map(p => [p.x, p.y]) : [],
+      line_coords: selectedZone.zone_type === 'tripwire' ? normPoints.map(p => [p.x, p.y]) : []
     };
 
+    setLoading(true);
+    setStatusMessage('');
+    setSaveSuccessBanner(null);
     try {
       await api.saveZone(updatedZone);
-      setStatusMessage('Border area updated and live AI rule reloaded!');
+      setSaveSuccessBanner({
+        name: selectedZone.name || 'Border Sector 1',
+        camera: 'CAM-01'
+      });
       setIsDrawingMode(false);
-      setTimeout(() => setStatusMessage(''), 3500);
-      fetchZones();
+      setTimeout(() => setSaveSuccessBanner(null), 8000);
+      await fetchZones();
     } catch (err) {
-      console.error(err);
-      setStatusMessage('Error saving zone.');
+      console.error('Failed to save zone:', err);
+      setStatusMessage(`Failed to save zone: ${err.message || 'Database error'}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteZone = async (zoneId) => {
-    if (!window.confirm(`Delete zone ${zoneId}?`)) return;
-    try {
-      await api.deleteZone(zoneId);
+    if (!zoneId) return;
+    setLoading(true);
+    setZones((prev) => prev.filter((z) => z.zone_id !== zoneId));
+    if (selectedZone?.zone_id === zoneId) {
       setSelectedZone(null);
       setDrawnPoints([]);
-      fetchZones();
+    }
+    try {
+      await api.deleteZone(zoneId);
+      setStatusMessage('Zone deleted successfully.');
+      setTimeout(() => setStatusMessage(''), 3000);
+      await fetchZones();
     } catch (e) {
       console.error(e);
+      setStatusMessage('Error deleting zone.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -203,8 +251,14 @@ export default function ZonesPage() {
     const newZ = {
       zone_id: newId,
       camera_id: 'CAM-01',
-      name: 'Custom Border Sector',
+      name: `Custom Border Sector ${zones.length + 1}`,
       zone_type: 'polygon',
+      polygon_data: [
+        { x: 0.26, y: 0.22 },
+        { x: 0.74, y: 0.22 },
+        { x: 0.74, y: 0.81 },
+        { x: 0.26, y: 0.81 }
+      ],
       polygon_coords: [[250, 120], [710, 120], [710, 440], [250, 440]],
       line_coords: [],
       is_restricted: true,
@@ -213,9 +267,9 @@ export default function ZonesPage() {
       color: '#ef4444',
       enabled: true
     };
-    setZones([...zones, newZ]);
+    setZones((prev) => [...prev, newZ]);
     setSelectedZone(newZ);
-    setDrawnPoints(newZ.polygon_coords);
+    setDrawnPoints([[250, 120], [710, 120], [710, 440], [250, 440]]);
     setIsDrawingMode(true);
   };
 
@@ -244,9 +298,33 @@ export default function ZonesPage() {
         </div>
       </div>
 
+      {/* Required UI Banner: ZONE CREATED SUCCESSFULLY */}
+      {saveSuccessBanner && (
+        <div className="p-3 bg-emerald-950/90 border border-emerald-500/80 rounded font-mono text-xs text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)] space-y-1 animate-fadeIn">
+          <div className="flex items-center space-x-2 text-emerald-400 font-bold tracking-wider text-sm">
+            <Check className="w-4 h-4" />
+            <span>ZONE CREATED SUCCESSFULLY</span>
+          </div>
+          <div className="pl-6 space-y-0.5 text-slate-200">
+            <div><span className="text-slate-400">Zone: </span><span className="font-bold text-white">{saveSuccessBanner.name}</span></div>
+            <div><span className="text-slate-400">Camera: </span><span className="font-bold text-cyan-400">{saveSuccessBanner.camera}</span></div>
+          </div>
+        </div>
+      )}
+
       {statusMessage && (
-        <div className="p-2.5 bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-mono rounded flex items-center space-x-2 shadow-[0_0_12px_rgba(16,185,129,0.2)]">
-          <Check className="w-4 h-4 text-emerald-400" />
+        <div
+          className={`p-2.5 text-xs font-mono rounded flex items-center space-x-2 ${
+            statusMessage.toLowerCase().includes('failed') || statusMessage.toLowerCase().includes('error')
+              ? 'bg-rose-950/80 border border-rose-500/50 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.2)]'
+              : 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+          }`}
+        >
+          {statusMessage.toLowerCase().includes('failed') || statusMessage.toLowerCase().includes('error') ? (
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+          ) : (
+            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+          )}
           <span>{statusMessage}</span>
         </div>
       )}
@@ -311,7 +389,7 @@ export default function ZonesPage() {
               ref={imageRef}
               src={`${getBackendBase()}/api/v1/stream/snapshot/raw?t=${snapshotTimestamp}`}
               alt="Camera Zone View"
-              className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+              className="absolute inset-0 w-full h-full object-fill pointer-events-none"
               onError={(e) => {
                 e.target.style.display = 'none';
               }}
@@ -323,7 +401,7 @@ export default function ZonesPage() {
               width={960}
               height={540}
               onClick={handleCanvasClick}
-              className={`relative z-10 w-full h-full object-contain ${
+              className={`relative z-10 w-full h-full object-fill ${
                 isDrawingMode ? 'cursor-crosshair' : 'cursor-default'
               }`}
             />

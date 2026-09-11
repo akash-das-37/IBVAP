@@ -65,24 +65,39 @@ class VideoCaptureThread:
 
     def _open_capture(self) -> bool:
         if self.cap is not None:
-            self.cap.release()
+            try:
+                self.cap.release()
+            except Exception:
+                pass
+            self.cap = None
 
         logger.info(f"Connecting to video source: {self.parsed_source} ...")
         
         if self.is_network_stream:
             # Optimize RTSP buffer size to 1 frame to eliminate latency
             self.cap = cv2.VideoCapture(self.parsed_source, cv2.CAP_FFMPEG)
-            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            if self.cap and self.cap.isOpened():
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         elif self.is_webcam:
-            self.cap = cv2.VideoCapture(self.parsed_source, cv2.CAP_DSHOW) # DirectShow for fast Windows webcam
-            if not self.cap.isOpened():
+            # On Windows, try DirectShow first for fast webcam capture, fallback to default
+            self.cap = cv2.VideoCapture(self.parsed_source, cv2.CAP_DSHOW)
+            if not self.cap or not self.cap.isOpened():
+                if self.cap is not None:
+                    try:
+                        self.cap.release()
+                    except Exception:
+                        pass
                 self.cap = cv2.VideoCapture(self.parsed_source)
+            if self.cap and self.cap.isOpened():
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         else:
             self.cap = cv2.VideoCapture(self.parsed_source)
 
         if self.cap and self.cap.isOpened():
             self.is_connected = True
-            logger.info("Camera connection successfully established.")
+            logger.info(f"Camera connection successfully established for {self.parsed_source}.")
             return True
         else:
             self.is_connected = False
@@ -119,6 +134,7 @@ class VideoCaptureThread:
                 self.current_frame = frame
                 self.last_frame_time = now
                 self.frame_count += 1
+                self.is_connected = True
 
             frames_in_second += 1
             if now - fps_timer >= 1.0:
@@ -162,6 +178,13 @@ class VideoCaptureThread:
 
     def stop(self):
         self.is_running = False
+        if self.cap is not None:
+            try:
+                self.cap.release()
+            except Exception:
+                pass
+            self.cap = None
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
-        logger.info("VideoCaptureThread stopped.")
+        self.is_connected = False
+        logger.info("VideoCaptureThread stopped and hardware released.")

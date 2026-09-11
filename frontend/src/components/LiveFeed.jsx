@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Camera, RefreshCw, Smartphone, Video, FileVideo, Maximize2, ShieldAlert } from 'lucide-react';
 import { api, getBackendBase } from '../services/api';
 
-export default function LiveFeed({ liveStats, currentCamera, onSourceChanged }) {
+export default function LiveFeed({ liveStats, currentCamera, zones = [], onSourceChanged }) {
   const [streamError, setStreamError] = useState(false);
   const [showSwitchModal, setShowSwitchModal] = useState(false);
   const [customSource, setCustomSource] = useState('');
@@ -39,6 +39,16 @@ export default function LiveFeed({ liveStats, currentCamera, onSourceChanged }) 
           <span className="px-1.5 py-0.5 text-[10px] font-mono uppercase bg-slate-800 text-cyan-400 rounded border border-slate-700">
             {liveStats?.source_type || 'STREAM'}
           </span>
+          {zones && zones.length > 0 ? (
+            <span className="px-2 py-0.5 text-[10px] font-mono bg-rose-950/70 border border-rose-500/50 rounded text-rose-300 flex items-center space-x-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
+              <span className="font-bold">ZONE ACTIVE: {zones[0].name}</span>
+            </span>
+          ) : (
+            <span className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono text-slate-500 border border-slate-800 rounded">
+              NO ZONE SET
+            </span>
+          )}
         </div>
 
         <div className="flex items-center space-x-2">
