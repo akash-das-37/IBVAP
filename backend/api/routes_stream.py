@@ -87,3 +87,18 @@ def get_raw_snapshot():
                         headers={"Cache-Control": "no-store"})
     return Response(content=buffer.tobytes(), media_type="image/jpeg",
                     headers={"Cache-Control": "no-store"})
+
+@router.get("/debug_camera")
+def debug_camera():
+    meta = pipeline.capture.get_metadata()
+    return {
+        "pipeline_running": pipeline.is_running,
+        "camera_source": pipeline.camera_source,
+        "has_annotated_frame": pipeline.latest_annotated_frame is not None,
+        "capture_metadata": meta,
+        "capture_is_running": pipeline.capture.is_running,
+        "capture_is_connected": pipeline.capture.is_connected,
+        "capture_cap_is_none": pipeline.capture.cap is None,
+        "capture_cap_is_opened": pipeline.capture.cap.isOpened() if pipeline.capture.cap else False
+    }
+

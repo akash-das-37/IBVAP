@@ -154,17 +154,18 @@ class VideoCaptureThread:
                         if cap and cap.isOpened():
                             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                            ret, test_frame = cap.read()
-                            if ret and test_frame is not None and test_frame.size > 0:
-                                self.parsed_source = idx
-                                self.cap = cap
-                                self.current_frame = test_frame
-                                self.is_connected = True
-                                logger.info(f"Local webcam index {idx} successfully initialized and verified (backend {backend}).")
-                                return True
-                            else:
-                                cap.release()
+                            # Give up to 10 warm-up read attempts (500ms max) for driver buffer negotiation
+                            for _ in range(10):
+                                ret, test_frame = cap.read()
+                                if ret and test_frame is not None and test_frame.size > 0:
+                                    self.parsed_source = idx
+                                    self.cap = cap
+                                    self.current_frame = test_frame
+                                    self.is_connected = True
+                                    logger.info(f"Local webcam index {idx} successfully initialized and verified (backend {backend}).")
+                                    return True
+                                time.sleep(0.05)
+                            cap.release()
                     except Exception as e:
                         logger.warning(f"Failed opening webcam index {idx} with backend {backend}: {e}")
 

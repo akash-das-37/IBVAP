@@ -29,8 +29,8 @@ def main():
     print("\nStarting IBVAP Backend & Frontend Services...\n")
 
     # 1. Start FastAPI Backend
-    backend_cmd = [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-    print("[1/2] Launching FastAPI Backend on http://localhost:8000 (with auto-reload) ...")
+    backend_cmd = [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--http", "h11"]
+    print("[1/2] Launching FastAPI Backend on http://localhost:8000 ...")
     backend_proc = subprocess.Popen(backend_cmd)
 
     time.sleep(3.0)
