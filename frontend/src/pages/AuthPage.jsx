@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Lock, Mail, Key, UserCheck, ArrowRight, AlertTriangle, Eye, EyeOff, Radio } from 'lucide-react';
+import { Shield, Lock, Mail, Key, UserCheck, ArrowRight, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../services/supabase';
 
 export default function AuthPage({ onAuthenticated }) {
@@ -55,23 +55,6 @@ export default function AuthPage({ onAuthenticated }) {
     }
   };
 
-  const handleDemoAccess = async () => {
-    setLoading(true);
-    setErrorMessage('');
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: 'iamnegative37@gmail.com',
-        password: 'Surveillance2026!'
-      });
-      if (error) throw error;
-      if (onAuthenticated) onAuthenticated(data.user);
-    } catch (err) {
-      console.error('Demo login error:', err);
-      setErrorMessage('Failed to enter demo mode: ' + (err.message || 'Authentication error'));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen w-screen bg-[#07090e] flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">
@@ -202,23 +185,6 @@ export default function AuthPage({ onAuthenticated }) {
           </div>
         </form>
 
-        {/* Divider */}
-        <div className="relative flex items-center justify-center">
-          <div className="border-t border-slate-800 w-full" />
-          <span className="bg-[#0d1117] px-2 text-[10px] font-mono text-slate-500 shrink-0">
-            OR DEMO EXPLORER
-          </span>
-        </div>
-
-        {/* 1-Click Guest Demo Access */}
-        <button
-          type="button"
-          onClick={handleDemoAccess}
-          className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-slate-700 rounded-lg text-xs font-mono transition-colors flex items-center justify-center space-x-2"
-        >
-          <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-          <span>ENTER AS FIELD OBSERVER (DEMO ACCESS)</span>
-        </button>
 
         {/* Footer Security Notice */}
         <p className="text-[10px] font-mono text-slate-500 text-center">

@@ -94,9 +94,19 @@ def switch_camera_source(
         "Authorization": f"Bearer {tenant.token}",
         "Content-Type": "application/json"
     }
-    requests.patch(url, headers=headers, json={"source_url": req.source_url, "status": "ONLINE"}, timeout=15)
+    try:
+        requests.patch(url, headers=headers, json={"source_url": req.source_url, "status": "ONLINE"}, timeout=15)
+    except Exception as e:
+        logger.warning(f"Failed to update camera in Supabase: {e}")
 
-    if camera_id == settings.CAMERA_ID:
-        pipeline.set_camera_source(req.source_url)
+    # Immediately switch active edge camera capture source
+    pipeline.set_camera_source(req.source_url)
+    meta = pipeline.capture.get_metadata()
 
-    return {"message": "Camera source updated", "camera_id": camera_id, "new_source": req.source_url}
+    return {
+        "message": "Camera source updated",
+        "camera_id": camera_id,
+        "new_source": req.source_url,
+        "is_connected": meta.get("is_connected", False),
+        "source_type": meta.get("type", "stream")
+    }

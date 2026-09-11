@@ -43,30 +43,23 @@ export default function App() {
 
   // Check Supabase authentication session on mount
   useEffect(() => {
-    sessionStorage.removeItem('ibvap_demo_user');
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setCurrentUser(session.user);
       } else {
-        // Auto-authenticate as primary defense operator if not logged in
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: 'iamnegative37@gmail.com',
-            password: 'Surveillance2026!'
-          });
-          if (!error && data?.user) {
-            setCurrentUser(data.user);
-          }
-        } catch (e) {
-          console.warn('[IBVAP] Auto-auth failed:', e);
-        }
+        setCurrentUser(null);
       }
       setAuthChecking(false);
-    }).catch(() => setAuthChecking(false));
+    }).catch(() => {
+      setCurrentUser(null);
+      setAuthChecking(false);
+    });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setCurrentUser(session.user);
+      } else {
+        setCurrentUser(null);
       }
     });
 
@@ -74,7 +67,6 @@ export default function App() {
   }, []);
 
   const handleSignOut = async () => {
-    sessionStorage.removeItem('ibvap_demo_user');
     await supabase.auth.signOut().catch(() => {});
     setCurrentUser(null);
     setCurrentOrg(null);
@@ -185,9 +177,6 @@ export default function App() {
     return (
       <AuthPage
         onAuthenticated={(user) => {
-          if (user.id === 'demo-operator-01') {
-            sessionStorage.setItem('ibvap_demo_user', JSON.stringify(user));
-          }
           setCurrentUser(user);
         }}
       />

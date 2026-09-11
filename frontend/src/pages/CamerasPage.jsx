@@ -195,15 +195,18 @@ export default function CamerasPage({ liveStats, onSourceChanged }) {
               {isEditing ? (
                 <div className="space-y-2 pt-2 border-t border-slate-800">
                   <label className="block text-[11px] font-mono text-slate-400">
-                    New Stream URL (RTSP / HTTP / 0 / File path):
+                    New Stream URL (IP Webcam / RTSP / 0 / File path):
                   </label>
                   <input
                     type="text"
                     value={newSourceUrl}
                     onChange={(e) => setNewSourceUrl(e.target.value)}
-                    placeholder="rtsp://192.168.x.x:8080/h264_pcm.sdp"
+                    placeholder="http://192.168.1.50:8080/video or 0"
                     className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-400"
                   />
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    💡 For Android IP Webcam app, enter your phone&apos;s IP with <span className="text-cyan-400">/video</span> (e.g. <span className="text-slate-300">http://192.168.1.50:8080/video</span>)
+                  </p>
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => handleUpdateSource(cam.camera_id)}

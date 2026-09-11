@@ -11,10 +11,14 @@ export default function LiveFeed({ liveStats, currentCamera, zones = [], onSourc
   const streamUrl = `${getBackendBase()}/api/v1/stream/video_feed`;
 
   const handleSwitchSource = async (newSource) => {
+    if (!newSource) return;
+    const cleanSource = String(newSource).trim().replace(/^["']|["']$/g, '');
+    if (!cleanSource) return;
     setIsSwitching(true);
+    setStreamError(false);
     try {
-      await api.switchCameraSource(currentCamera?.camera_id || 'CAM-01', newSource);
-      if (onSourceChanged) onSourceChanged(newSource);
+      await api.switchCameraSource(currentCamera?.camera_id || 'CAM-01', cleanSource);
+      if (onSourceChanged) onSourceChanged(cleanSource);
       setShowSwitchModal(false);
     } catch (e) {
       console.error('Failed to switch source:', e);
@@ -165,19 +169,22 @@ export default function LiveFeed({ liveStats, currentCamera, zones = [], onSourc
             <div className="border-t border-slate-800 pt-4">
               <label className="block text-xs font-mono text-slate-300 mb-1.5 flex items-center space-x-1.5">
                 <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Smartphone RTSP / HTTP URL:</span>
+                <span>Smartphone IP Webcam / RTSP URL:</span>
               </label>
               <input
                 type="text"
-                placeholder="e.g. rtsp://192.168.1.50:8080/h264_pcm.sdp or http://192.168.1.50:8080/video"
+                placeholder="e.g. 192.168.1.50:8080 or http://192.168.1.50:8080/video"
                 value={customSource}
                 onChange={(e) => setCustomSource(e.target.value)}
-                className="w-full bg-black/60 border border-slate-700 rounded px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-cyan-400 mb-3"
+                className="w-full bg-black/60 border border-slate-700 rounded px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-cyan-400 mb-1.5"
               />
+              <p className="text-[10px] text-slate-400 font-mono mb-3">
+                📱 Tip: In Android &quot;IP Webcam&quot; app, use <span className="text-cyan-400">http://&lt;phone-ip&gt;:8080/video</span>. Both devices must be on the same Wi-Fi.
+              </p>
               <button
                 onClick={() => handleSwitchSource(customSource)}
                 disabled={isSwitching || !customSource.trim()}
-                className="w-full py-2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-black font-mono font-bold text-xs rounded transition-colors"
+                className="w-full py-2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-black font-mono font-bold text-xs rounded transition-colors cursor-pointer"
               >
                 {isSwitching ? 'CONNECTING...' : 'APPLY SMARTPHONE STREAM'}
               </button>
