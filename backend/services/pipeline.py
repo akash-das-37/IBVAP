@@ -182,6 +182,7 @@ class AnalyticsPipeline:
     def _pipeline_loop(self):
         last_time = time.time()
         frames_in_sec = 0
+        last_stats_broadcast = 0.0
 
         while self.is_running:
             ret, frame, timestamp = self.capture.read()
@@ -296,7 +297,8 @@ class AnalyticsPipeline:
                 self.latest_annotated_frame = annotated_frame
 
             # Send periodic stats (every 1 second)
-            if frames_in_sec == 1 and self.loop and not self.loop.is_closed():
+            if (now - last_stats_broadcast >= 1.0) and self.loop and not self.loop.is_closed():
+                last_stats_broadcast = now
                 person_count = sum(1 for t in tracks if t["class_name"] == "person")
                 vehicle_count = sum(1 for t in tracks if t["class_name"] in ["car", "bus", "truck", "motorcycle"])
                 meta = self.capture.get_metadata()
@@ -373,8 +375,18 @@ class AnalyticsPipeline:
         zones: List[Dict[str, Any]],
         violations: List[Dict[str, Any]]
     ) -> np.ndarray:
-        """Renders tactical overlays: zones, bounding boxes, track IDs, directions, and alert banners."""
-        overlay = frame.copy()
+        # Detect dark frame / closed physical shutter
+        if np.mean(frame) < 1.0:
+            h, w = frame.shape[:2]
+            cv2.rectangle(frame, (10, 10), (w - 10, h - 10), (45, 55, 72), 1)
+            cv2.putText(frame, "IBVAP DEFENSE EDGE // WEBCAM HARDWARE ACTIVE", (30, 45),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 240, 255), 2, cv2.LINE_AA)
+            cv2.putText(frame, "CAMERA SENSOR DARK / LENS COVERED", (30, h // 2 - 15),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 165, 255), 2, cv2.LINE_AA)
+            cv2.putText(frame, "Slide open laptop physical webcam shutter,", (30, h // 2 + 18),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (203, 213, 225), 1, cv2.LINE_AA)
+            cv2.putText(frame, "or click CHANGE SOURCE to select Demo Video / IP Cam.", (30, h // 2 + 42),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.42, (148, 163, 184), 1, cv2.LINE_AA)
 
         # 1. Draw Zones (Polygons / Tripwires)
         for zone in zones:

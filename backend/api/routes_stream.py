@@ -42,8 +42,12 @@ def generate_mjpeg():
             jpeg_bytes = get_standby_frame()
 
         if jpeg_bytes:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n')
+            header = (
+                b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n'
+                b'Content-Length: ' + str(len(jpeg_bytes)).encode('ascii') + b'\r\n\r\n'
+            )
+            yield header + jpeg_bytes + b'\r\n'
         time.sleep(0.033)  # ~30 FPS throttle to maintain low CPU load
 
 @router.get("/video_feed")
@@ -51,7 +55,13 @@ def video_feed():
     """MJPEG Live video stream with real-time AI bounding boxes, tracking IDs, and zone overlays."""
     return StreamingResponse(
         generate_mjpeg(),
-        media_type="multipart/x-mixed-replace; boundary=frame"
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate, pre-check=0, post-check=0, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "Connection": "close"
+        }
     )
 
 @router.get("/snapshot")
